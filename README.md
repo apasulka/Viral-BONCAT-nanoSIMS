@@ -18,6 +18,7 @@ The quickest and easiest way is to use RStudio.
  1. Download and install [RStudio](http://www.rstudio.com/products/rstudio/download/) for your operating system
  1. Download a [zip file of this repository](https://github.com/apasulka/Viral-BONCAT/archive/master.zip) and unpack it in an easy to find directory on your computer
  1. Start RStudio and select File --> New Project from the menu, select the "Existing Directory" option and browse to the repository folder from the zip file in the "Project working directory" field, then select "Create Project"
+ 1. Install the required libraries by running the following command in the **Console** in RStudio: `install.packages(c("tidyverse", "knitr", "lans2r"))` or by installing them manually in the RStudio's **Packages** manager.
  1. Open any of the R Markdown (.Rmd) files in the file browser.
  1. To generate the HTML report ("knit HTML"), select File --> Knit from the menu. The HTML report will be displayed upon successful completion (some might take a few minutes because of the complex figures) and is saved as a standalone file in the same directory (these are the files made available in the journal's SI **NOTE: can we provide this to the journal?**). All generated figures are saved as PDFs and PNGs in the plot/ sub-directory.
  
@@ -36,5 +37,5 @@ The following are the differnt outside software packages used with links to thei
 
 #### Troubleshooting notes
 
-The R Markdown files in this repository make use of various R modules for data processing, plotting and modelling. All of these should be installed automatically when the first R Markdown file is knitted (if the knitting fails because of a missing package, please install it manually, an error will indicate which package could not be installed). 
+The R Markdown files in this repository make use of various R modules for data processing, plotting and modelling. If the knitting of an RMarkdown file fails because of a missing package, please install it manually, an error will indicate which package is missing. 
  
