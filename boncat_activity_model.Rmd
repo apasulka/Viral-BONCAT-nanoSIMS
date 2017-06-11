@@ -1,0 +1,172 @@
+---
+title: "BONCAT Activity Model"
+output: html_document
+---
+
+```{r "load libraries", echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(knitr)
+source("boncat_activity_functions.R") # model functions in this file
+opts_chunk$set(dev=c("png", "pdf"), dev.args=list(pdf = list(encoding="WinAnsi", useDingbats=FALSE)),
+  fig.keep="all", fig.path = file.path("plot", "BONCAT_model_"))
+```
+
+# Activity model
+
+```{r}
+# load actual virus data parameters
+load(file = file.path("data", "boncat_params.RData"))
+print(boncat_params)
+```
+
+## Number of methionine substitutions
+
+The number of methionine substitutions is modeled with a binomial distribution with a specific expected value (i.e. the average number of substitutions) $E[X] = np$. The number of substitution sites ($n$) and probability ($p$) of substituion can influence the shape of the probability distribution but only for relatively small number of sites / high substitution probabilities). The following illustrates the differences for the probability distribution functions for different viral particle sizes as well as 2 synthetic ones (called Tiny and Huge).
+
+```{r}
+distributions <-
+  boncat_params$virus_met %>%
+  mutate(type = "real") %>% 
+  bind_rows(data_frame(virus = c("Tiny", "Huge"), n_met = c(50, 50000), type = "hypothetical")) %>% 
+  merge(data_frame(avg_subs = c(1, 6, 12, 20))) %>% 
+  as_data_frame() %>% 
+  group_by_(.dots = names(.)) %>% # group by everything
+  do({
+    with(., data_frame(p = avg_subs/n_met, 
+                       subs = seq(0,35),
+                       prob = dbinom(subs, size = n_met, p = p)))
+  }) %>% ungroup() %>% 
+  mutate(scenario = sprintf("# met (n): %05d (%s)", n_met, virus)) 
+```
+
+```{r "binomial_substitution_probability", fig.width = 8, fig.height = 6}
+distributions %>% 
+  select(-subs, -prob) %>% unique() %>% 
+  ggplot() + aes(avg_subs, p, color = scenario) + 
+  geom_point(size = 3) + geom_line() +
+  scale_x_continuous("Avg # substitutions (E)") +
+  scale_y_continuous("Substitution probability (p)", labels = scales::percent) +
+  theme_bw() + labs(title = "Binomial distribution parameters", color = "")
+```
+
+```{r "binomial_probability_density", fig.width = 8, fig.height = 6}
+distributions %>% 
+  ggplot() + aes(subs, prob) + 
+  geom_vline(data = function(df) select(df, avg_subs) %>% unique, 
+             map = aes(xintercept = avg_subs, color = NULL, group = NULL), linetype = 2) +
+  geom_text(data = function(df) select(df, avg_subs) %>% unique, 
+            map = aes(x = avg_subs, y = 0.35, label = sprintf("avg: %d", avg_subs), color = NULL, group = NULL), color = "red", hjust = -0.1) +
+  geom_line(map = aes(group = paste(avg_subs, scenario), color = scenario)) +
+  scale_x_continuous("# substitutions", expand = c(0,0)) +
+  scale_y_continuous("Probability", expand = c(0,0), labels = scales::percent) +
+  theme_bw() + expand_limits(y = 0.4) + labs(color = "") +
+  labs(title = "Binomial probability distributions")
+```
+
+> Conclusion: for relatively small probabilties of substitution (likely < 10%) and/or relatively large particles relative to the average number of substutions (>400 sites, i.e. T7), the probability density functions are almost identical and will be treated as such for the purpose of modeling (i.e. the average # of substutions is the only real free parameter).
+
+## Change in signal (RG)
+
+Each substitution of meth leads to a flurescent signal that increases the R/G of the viral particle by a specific amount. The estimated average change in R/G per substitution is inferred from the T7 data: `r signif(boncat_params$T7_avg_dRG_per_sub, 3)`. However, depending on where on the particle the substitution sites are located, this may lead to a larger or smaller R/G change.
+
+Here, we simulate activity by adding a random number of methionine substitutions (modeled with a binomial distribution, each increasing the R/G amount) to a subset (x percent) of the negative control R/G ratios with different number of particles in play. 
+
+*Important note*: this does not simulate death of existing particles and hence greates a bimodal distribution unless all particles are active.
+
+```{r}
+# negative data set to start with
+load(file = file.path("data", "boncat_data.RData"))
+neg_data <- filter(boncat_all, dataset == "T7", grepl("Neg", variable))$value
+
+# simulated result
+sim_result <- expand.grid(
+  approx_sim_active = c(5,25,50, 75,99), 
+  n_particles = 10000, 
+  dRG_per_sub = c(0.01, 0.03, 0.05), # single substitution dRG increase, estimate from T7 (0.049)
+  dRG_per_sub_range = c(0, 20, 60), # what is the +- width of the R/G signal (in percentage)
+  avg_subs = c(1, 5, 12) # avg number substitutions
+) %>% 
+  group_by_(.dots = names(.)) %>% 
+  do(with(., {
+    neg <- sample(neg_data, size = n_particles)
+    pos <- sample(neg_data, size = n_particles)
+    n_active <- floor(approx_sim_active/100*n_particles)
+    # simulation data
+    data_frame(
+      value = generate_activity_distribution(pos, n_active = n_active, avg_subs = avg_subs, 
+                                   dRG_per_sub = dRG_per_sub, dRG_per_sub_range = dRG_per_sub_range),
+      variable = "Model") %>% 
+      bind_rows(data_frame(value = neg, variable = "Neg")) %>% 
+      mutate(true_sim_active = n_active/n_particles*100) %>% return()
+  })) %>% ungroup() 
+
+sim_sum <- sim_result %>% select(-value, -variable) %>% unique() 
+sim_sum %>% knitr::kable()
+```
+
+```{r}
+# plot data
+sim_plot_data <-
+  sim_result %>% 
+  filter(n_particles == max(n_particles)) %>% 
+  # only report negative data once
+  filter(!(variable == "Neg" & dRG_per_sub != dRG_per_sub[1] & avg_subs != avg_subs[1] & dRG_per_sub_range != dRG_per_sub_range[1])) %>% 
+  mutate(
+    dRG_per_sub = paste0("dRG/sub: ", dRG_per_sub),
+    dRG_per_sub_range = paste0("+/- dRG/sub: ", dRG_per_sub_range, "%"),
+    avg_subs = sprintf("# subs: %.2d", avg_subs),
+    active = sprintf("%.2d%% active",approx_sim_active),
+    fill = ifelse(variable == "Neg", "control (Neg)", avg_subs))
+
+base_plot <- 
+  ggplot() + 
+  aes(x = value, y = ..density.., fill = fill) +
+  geom_histogram(binwidth = 0.01, position = "identity", alpha = 0.6, color = "white", size = 0.1) + 
+  scale_x_continuous("R:G value", expand = c(0,0)) + 
+  scale_y_continuous("Probability", expand = c(0,0), labels = function(x) sprintf("%d %%", x)) +
+  theme_bw() + theme(legend.position = "right") + labs(fill = "")
+```
+
+```{r "histograms_simulated_activities_99_percent_active", fig.width = 12, fig.height = 10}
+base_plot %+% filter(sim_plot_data, grepl("99", active)) + facet_grid(dRG_per_sub_range~dRG_per_sub) + coord_cartesian(xlim = c(0, 1.5)) + 
+  labs(title = "99% active population")
+```
+
+```{r "histograms_simulated_activities_25_percent_active", fig.width = 12, fig.height = 10}
+base_plot %+% filter(sim_plot_data, grepl("25", active)) + facet_grid(dRG_per_sub_range~dRG_per_sub) + coord_cartesian(xlim = c(0, 1.5)) +
+  labs(title = "25% active population")
+```
+
+```{r "histograms_simulated_activities_all_perecent_active", fig.width = 12,fig.height = 10}
+sim_result %>% ungroup() %>% 
+  filter(n_particles == max(n_particles)) %>% 
+  filter(!(variable == "Neg" & dRG_per_sub != dRG_per_sub[1] & avg_subs != avg_subs[1])) %>% 
+  mutate(
+     dRG_per_sub = paste0("dRG/sub: ", dRG_per_sub),
+     avg_subs = sprintf("vg # subs: %.2d",avg_subs),
+     active = sprintf("%.2d%% active",approx_sim_active),
+     fill = ifelse(variable == "Neg", "Neg", paste(variable, dRG_per_sub))) %>% 
+  ggplot() +
+  aes(x = value, y = ..density.., fill = fill) +
+  geom_histogram(binwidth = 0.01, position = "identity", alpha = 0.6, color = "white", size = 0.1) + 
+  scale_x_continuous("R:G value", expand = c(0,0)) + 
+  scale_y_continuous("Probability", expand = c(0,0), labels = function(x) sprintf("%d %%", x)) +
+  coord_cartesian(xlim = c(0, 1.5))+ labs(fill = "") +
+  theme_bw() + theme(legend.position = "bottom") +
+  facet_grid(active ~ avg_subs, scales = "free_y")
+```
+
+#### Summary of the simulation details
+
+```{r}
+sim_plot_data %>% 
+  filter(approx_sim_active > 50) %>% 
+  group_by(approx_sim_active, avg_subs, dRG_per_sub, dRG_per_sub_range) %>% 
+  summarize(
+    mean_RG = mean(value),
+    median_RG = median(value),
+    sd_RG = sd(value)
+  ) %>% 
+  knitr::kable(d=3)
+```
+

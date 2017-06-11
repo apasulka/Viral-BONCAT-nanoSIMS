@@ -1,0 +1,155 @@
+---
+title: "BONCAT Activity Evaluation"
+output: html_document
+---
+
+```{r "load libraries", echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(knitr)
+source("boncat_activity_functions.R")
+opts_chunk$set(dev=c("png", "pdf"), dev.args=list(pdf = list(encoding="WinAnsi", useDingbats=FALSE)),
+  fig.keep="all", fig.path = file.path("plot", "BONCAT_activity_"))
+```
+
+# Activity evaluation
+
+What is the probability that sample from pos. > sample from neg? Use function `calculate_active_cells` in *boncat_activity_functions.R* file.
+
+## Testing with simulated data
+
+```{r}
+# based on actual virus data parameters
+load(file = file.path("data", "boncat_params.RData"))
+```
+
+Model data with a specific level of activity and see how well the activity metric does in terms of getting back out the original activity.
+
+```{r}
+# negative data set to start with
+load(file = file.path("data", "boncat_data.RData"))
+neg_data <- filter(boncat_all, dataset == "T7", grepl("Neg", variable))$value
+
+# simulated result
+eval_result <- expand.grid(
+  approx_sim_active = c(5, 25, 50, 75, 99),
+  n_particles = c(100, 1000, 10000),
+  dRG_per_sub = c(0.01, 0.03, 0.05), # single substitution dRG increase, estimate from T7 (0.049)
+  dRG_per_sub_range = c(0, 20, 60), # what is the +- width of the R/G signal (in percentage)
+  dRG_eval_noise = c(0, 0.01), # dRG random noise (uniform distribution) for evaluating actual measurements
+  avg_subs = c(1, 5, 12)  # avg number substitutions
+) %>% 
+  group_by_(.dots = names(.)) %>% 
+  do(with(., {
+    neg <- sample(neg_data, size = n_particles)
+    pos <- sample(neg_data, size = n_particles)
+    n_active <- floor(approx_sim_active/100*n_particles)
+    # simulation data
+    sim_data <- generate_activity_distribution(pos, n_active = n_active, avg_subs = avg_subs, 
+                                   dRG_per_sub = dRG_per_sub, dRG_per_sub_range = dRG_per_sub_range) 
+    # evaluate outcome
+    active_cells <- calculate_active_cells(sim_data, neg_data, 
+                                           a.noise = function(n) runif(n, -dRG_eval_noise, +dRG_eval_noise),
+                                           b.noise = function(n) runif(n, -dRG_eval_noise, +dRG_eval_noise))*100
+    data_frame(
+      true_sim_active = n_active/n_particles*100,
+      calc_active = active_cells['active'],
+      lci = active_cells['lci'],
+      uci = active_cells['uci']
+    )
+  })) %>% ungroup() 
+
+eval_result %>% knitr::kable(d=3)
+```
+
+#### Visualize evaluation result
+
+```{r "activity_estimate_accuracy_precision", fig.width = 10, fig.height = 8}
+# plot outcome
+eval_plot_df <- eval_result %>% 
+  arrange(n_particles) %>% 
+  mutate(
+    dRG_per_sub = paste0("dRG/sub: ", dRG_per_sub),
+    dRG_per_sub_range = paste0(dRG_per_sub_range, "%"),
+    dRG_eval_noise = paste0("dRG noise: ", dRG_eval_noise), 
+    avg_subs = sprintf("# subs: %.2d", avg_subs),
+    active = sprintf("%.2d%% active",approx_sim_active)) 
+
+base_plot <- 
+  ggplot() + 
+  aes(x = factor(approx_sim_active), 
+      y = calc_active, shape = factor(n_particles), fill = dRG_per_sub_range, color = dRG_per_sub_range) + 
+  geom_hline(data = function(df)
+    df %>% select(dRG_per_sub, avg_subs, active, approx_sim_active, dRG_per_sub_range) %>% unique(),
+    map = aes(yintercept = approx_sim_active, color = NULL)) +
+  geom_errorbar(position=position_dodge(width = 1), map = aes(ymin = lci, ymax = uci), width = 0.5) +
+  geom_point(position=position_dodge(width = 1), size = 3, color = "black") +
+  labs(x = "simulated % active", y = "calculated % active", shape = "# particles measured", 
+       fill = "dRG variation [+/-]", color = "dRG variation [+/-]") + 
+  scale_shape_manual("# particles", values = 21:25) +
+  coord_cartesian(ylim = c(0, 100)) + 
+  facet_grid(avg_subs~dRG_per_sub, scales = "free_x") + 
+  theme_bw() +
+   guides(fill = guide_legend(override.aes = list(colour = "white", size=8, shape = 22)), 
+         shape = guide_legend(override.aes = list(fill = "gray"))) 
+
+
+base_plot %+% filter(eval_plot_df, grepl("0$", dRG_eval_noise)) + labs(title = "no R/G noise")
+```
+
+
+```{r "activity_estimate_accuracy_precision_with_noise", fig.width = 10, fig.height = 8}
+base_plot %+% filter(eval_plot_df, grepl("0.01$", dRG_eval_noise)) + labs(title = "systematic R/G noise up to 0.01")
+```
+
+## Application to real data
+
+```{r}
+dRG_eval_noise <- 0.01
+boncat_all %>% group_by(dataset) %>% 
+  do({
+    active_cells <- calculate_active_cells(filter(., grepl("Pos", variable))$value, filter(., grepl("Neg", variable))$value)*100
+    active_cells_with_noise <- calculate_active_cells(
+      filter(., grepl("Pos", variable))$value, filter(., grepl("Neg", variable))$value,
+      a.noise = function(n) runif(n, -dRG_eval_noise, +dRG_eval_noise),
+      b.noise = function(n) runif(n, -dRG_eval_noise, +dRG_eval_noise))*100
+    data_frame(
+      est_active = active_cells['active'],
+      lci = active_cells['lci'],
+      uci = active_cells['uci'],
+      est_active_w_noise = active_cells_with_noise['active'],
+      lci_w_noise = active_cells_with_noise['lci'],
+      uci_w_noise = active_cells_with_noise['uci']
+    )
+  }) %>% knitr::kable(d = 2)
+```
+
+#### Further breakdown (all different replicate conditions)
+
+```{r}
+dRG_eval_noise <- 0.01
+full_join(
+  boncat_all %>% select(dataset, variable) %>% unique() %>% rename(var_a = variable),
+  boncat_all %>% select(dataset, variable) %>% unique() %>% rename(var_b = variable),
+  by = "dataset"
+) %>% 
+  filter(var_a != var_b) %>% 
+  group_by(dataset, var_a, var_b) %>% 
+  do({
+    cond_a <- filter(boncat_all, dataset == .$dataset[1], variable == .$var_a[1])$value
+    cond_b <- filter(boncat_all, dataset == .$dataset[1], variable == .$var_b[1])$value
+    active_cells <- calculate_active_cells(cond_a, cond_b)*100
+    active_cells_with_noise <- calculate_active_cells(cond_a, cond_b, 
+      a.noise = function(n) runif(n, -dRG_eval_noise, +dRG_eval_noise),
+      b.noise = function(n) runif(n, -dRG_eval_noise, +dRG_eval_noise))*100
+    data_frame(
+      est_active = active_cells['active'],
+      lci = active_cells['lci'],
+      uci = active_cells['uci'],
+      est_active_w_noise = active_cells_with_noise['active'],
+      lci_w_noise = active_cells_with_noise['lci'],
+      uci_w_noise = active_cells_with_noise['uci']
+    )
+  })%>% knitr::kable(d = 4)
+```
+
+
