@@ -1,6 +1,6 @@
 ## Supplementary Information
 
-This repository holds the additional source code used in image processing (MATLAB file `image_analysis.mat`) and BONCAT fluorescent activity modeling (`boncat_activity_model.Rmd` and `boncat_activity_evaluation.Rmd`) for the following pucliation: Pasulka et al. 2017. *Applications of BONCAT and nanoSIMS for measuring viral production and virus-host interactions in the ocean* (NOTE: full citation, doi and link to follow after publication). 
+This repository holds the additional source code used in image processing (MATLAB file `image_analysis.mat`) and BONCAT fluorescent activity modeling (`boncat_activity_model.Rmd` and `boncat_activity_evaluation.Rmd`) for the following publication: Pasulka et al. 2017. *Applications of BONCAT and nanoSIMS for measuring viral production and virus-host interactions in the ocean* (NOTE: full citation, doi and link to follow after publication). 
 
 ### Instructions for running the RMarkdown files:
 
@@ -28,7 +28,7 @@ We hope that this code, or any part of it, might prove useful to other members o
 
 ### References and additional software used in data processing
 
-The following are the differnt outside software packages used with links to their websites and installation instructions.
+The following are the different outside software packages used with links to their websites and installation instructions.
 
  - Mapping and ROI identification in raw NanoSIMS data: [Look at NanoSIMS ](http://nanosims.geo.uu.nl/nanosims-wiki/doku.php/nanosims:lans) (Polerecky et al. 2012)
  - Processing, calibration and visualization of LANS data in R: [lans2r](https://github.com/KopfLab/lans2r#lans2r) 
