@@ -1,0 +1,148 @@
+---
+title: "NanoSIMS Data Analysis - Labeling"
+author: "A. Pasulka, S. Kopf"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r "load libraries", echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(forcats)
+library(readxl)
+library(knitr)
+opts_chunk$set(dev=c("png", "pdf"), dev.args=list(pdf = list(encoding="WinAnsi", useDingbats=FALSE)),
+  fig.keep="all", fig.path = file.path("plot", "NANOSIMS_labeling_"))
+```
+
+## Load data
+```{r}
+# load nanosims data
+load(file.path("data", "nanosims_calculations.RData"))
+# add metadata text information for visualizations
+metadata_file <- file.path("data", 'metadata.xlsx')
+nanosims_calcs_with_labels <-
+  nanosims_calculations %>% 
+  left_join(read_excel(metadata_file, sheet = "organisms"), by = "Organism") %>% 
+  left_join(read_excel(metadata_file, sheet = "labels"), by = "Label") %>% 
+  left_join(read_excel(metadata_file, sheet = "experiments"), by = c("Organism", "RunDate", "Label")) 
+if (nrow(nanosims_calcs_with_labels %>% filter(is.na(Exp_text) | is.na(Label_text) | is.na(Org_text))) > 0)
+  stop("Some of the text labels seem to not have been defined (missing in the merged data set)")
+```
+
+
+## Visualize enrichment patterns
+
+#### Prepare data frame for plotting
+
+```{r}
+# plot data frame
+plot_df <- nanosims_calcs_with_labels %>% 
+  # sort by Host then Virus (for consistent color assignments)
+  arrange(Org_type) %>% 
+  # focus on fractionation corrected data only
+  filter(grepl("F corr", variable)) %>%
+  #  identifiy outliers
+  group_by(Organism,variable, Label) %>% 
+  mutate(is_outlier = ifelse(value %in% boxplot.stats(value)$out, "outlier", "data point")) %>% 
+  ungroup() %>% 
+  # generate plot panel and variable labels
+  mutate(
+    panel_label = paste0(Label_text, "\n(", Exp_text, ")"),
+    panel_variable = gsub(" F corr", "", variable),
+    Org_text = factor(Org_text) %>% fct_inorder())
+```
+
+#### Prepare plot template
+
+```{r}
+# base plot
+base_plot <- 
+  ggplot() +
+  aes(x = Org_text, y = value, fill = Org_text) +
+  # box plot
+  geom_boxplot(outlier.size = 0, outlier.color = "white") + 
+  # non-outlier data points
+  geom_jitter(data = function(df) filter(df, is_outlier == "data point"), 
+              aes(shape = is_outlier, alpha = is_outlier, size = sigma), show.legend = FALSE) +
+  # outlier data points
+  geom_point(data = function(df) filter(df, is_outlier == "outlier"), 
+             aes(shape = is_outlier, alpha = is_outlier, size = sigma)) +
+  # scales
+  scale_shape_manual(values = c(21, 23)) +
+  scale_alpha_manual(values = c(0.4, 1)) + 
+  scale_size_continuous(label = function(i) paste0(100*i, " at%")) + 
+  scale_y_continuous(("Fractional Abundance"), label = function(i) paste0(100*i, "%")) +
+  scale_fill_brewer(palette = "Set1") + 
+  # grid
+  facet_grid(panel_variable~panel_label, scales = "free_y") +
+  # theme and legend formatting
+  theme_bw() + labs(x = "", fill = "") +
+  theme(
+    legend.position = "bottom", legend.direction = "vertical", legend.box = "horizontal",
+    text = element_text(size = 18), 
+    #axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.x = element_blank()) +
+  labs(shape = "Data type", alpha = "Data type", size = "Error (absolute)", fill = "Organism") + 
+  # labels 
+  guides(shape = guide_legend(order = 1), alpha = guide_legend(order = 1), 
+         size = guide_legend(order = 2), fill = guide_legend(order = 3))
+```
+
+### Synecococcus
+
+```{r, "syn", fig.width = 12, fig.height = 7, warning=FALSE, echo=FALSE}
+# Synecoccous + Syn1
+temp_df <- plot_df %>% 
+  filter(Organism %in% c("Syn1","WH8101"), 
+         Exp_text %in% c("exp #1", "exp #2"), 
+         !(Label_text == "no label" & Exp_text == "exp #1")) 
+
+# plot
+base_plot %+% temp_df
+```
+
+#### 24 hour labeling experiment
+
+```{r, "syn_24hr", fig.width = 12, fig.height = 7, warning=FALSE, message=FALSE, echo=FALSE}
+# short term (24hr) labeling incubations
+temp_df <- plot_df %>% 
+  filter(
+    Organism %in% c("Syn1","WH8101"), grepl("24", Exp_text),
+    panel_variable == "15N")
+
+# plot
+base_plot %+% temp_df + 
+  # specifiy scale range and tick marks to make sure it is comparable with previous plot
+  scale_y_continuous(
+    "Fractional Abundance", label = function(i) paste0(100*i, "%"),
+    breaks = c(0, 0.25, 0.5, 0.75), lim = c(0, 0.8)) 
+```
+
+
+### E. huxleyi data
+
+```{r, "ehux",fig.width = 12, fig.height = 7, warning=FALSE, echo=FALSE}
+# E. huxley + EhV labeling data
+temp_df <- plot_df %>%  
+  filter(
+    Organism %in% c("EhV","Ehux"), !Label %in% c("15NO3ads", "15NH4ads"), 
+    !(Label_text == "15N nitrate" & Exp_text == "exp #1")) 
+
+# plot
+base_plot %+% mutate(temp_df, panel_label = Label_text)
+```
+
+
+### Adsorption Control
+
+```{r, "ads_ctrl",fig.width = 10, fig.height = 7, warning=FALSE, echo=FALSE}
+# adsorption control
+temp_df <- plot_df %>% 
+  # include the unlabeled and adsorption experiments
+  filter(Organism %in% c("Ehux"), panel_variable == "15N", Label %in% c("UnL", "15NO3ads", "15NH4ads")) %>% 
+  # simplify the panel labels
+  mutate(panel_label = ifelse(Label == "UnL", Label_text, paste0(Label_text, "\n", Exp_text, ""))) 
+# plot with horizontal natural abundance line
+base_plot %+% temp_df +
+  geom_hline(yintercept = 0.0036, size = 2, color = "grey", alpha = 0.3)
+```
