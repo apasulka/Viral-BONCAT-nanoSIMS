@@ -1,0 +1,47 @@
+---
+title: "NanoSIMS Data Analysis - Fractionation"
+author: "A. Pasulka, S. Kopf"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r "load libraries", echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(knitr)
+opts_chunk$set(dev=c("png", "pdf"), dev.args=list(pdf = list(encoding="WinAnsi", useDingbats=FALSE)),
+  fig.keep="all", fig.path = file.path("plot", "NANOSIMS_fractionation_"))
+```
+
+## Load data
+```{r}
+load(file.path("data", "nanosims_calculations.RData"))
+```
+
+## Visualize fractionation factors
+
+Estimated from combined ROIs' total fractionation vs. circumnatural ratios expected for unlabelled samples. 
+
+```{r, fractionation_factors_by_run_FINAL, fig.width=10, fig.height=8, warning=FALSE}
+nanosims_calculations %>% 
+  filter(grepl("alpha", data_type)) %>% 
+  select(RunDate, variable, value, sigma) %>% 
+  mutate(variable = sub("alpha ", "", variable)) %>% 
+  distinct() %>% 
+  mutate(inferred = ifelse(RunDate %in% c("June_2015", "Sept_2015") & 
+                             variable == "15N", "approximated from all runs", 
+                           "measured in run")) %>% 
+  ggplot() + 
+  aes(x = RunDate, y = value - 1, fill = RunDate, alpha = inferred) +
+  geom_bar(position = "dodge", stat = "identity", color = "black") +
+  geom_errorbar(position = "dodge", size = 0.2, 
+                aes(ymin = value - sigma - 1, ymax = value + sigma - 1)) + 
+  geom_hline(yintercept = 0, size = 0.5) +
+  facet_grid(variable~., scales = "free_y") + 
+  scale_y_continuous(expression("Fractionation "~epsilon['NS/expected']),
+                     labels = function(x) paste(1000*x, "\U2030")) +
+  scale_alpha_manual(name = "", values = c(0.4, 1)) +
+  scale_fill_brewer(palette = "Set1") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
