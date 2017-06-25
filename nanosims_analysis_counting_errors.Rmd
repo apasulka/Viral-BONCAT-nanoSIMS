@@ -1,0 +1,111 @@
+---
+title: "NanoSIMS Data Analysis - Counting Error"
+author: "A. Pasulka, S. Kopf"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r "load libraries", echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(latex2exp)
+library(knitr)
+opts_chunk$set(dev=c("png", "pdf"), dev.args=list(pdf = list(encoding="WinAnsi", useDingbats=FALSE)),
+  fig.keep="all", fig.path = file.path("plot", "NANOSIMS_counting_errors_"))
+```
+
+## Load data
+
+```{r}
+load(file.path("data", "nanosims_data.RData"))
+```
+
+## Visualize ion counting errors
+
+#### Prepare data frame for cross-plotting ions
+
+```{r}
+ion_x <- "12C"
+ion_y <- "14N12C"
+nanosims_data_cross_plot <- 
+  # combine nanosims_data for crossplotting the ions
+  full_join(
+    filter(nanosims_data, variable == ion_x) %>% 
+      select(analysis, plane, ROI, Organism, Label, RunDate, variable, value_x = value, sigma_x = sigma),
+    filter(nanosims_data, variable == ion_y) %>% 
+      select(analysis, plane, ROI, variable, value_y = value, sigma_y = sigma),
+    by = c("analysis", "plane", "ROI")
+  ) %>% 
+  # include data with at least 1 ion count
+  filter(!is.na(value_x), !is.na(value_y), value_x > 1, value_y > 1) %>% 
+  # truncate error bars that reach into negative ion counts down to 1^(-6) 
+  mutate(sigma_y = ifelse(value_y - 2*sigma_y <= 0, value_y/2-1e-6, sigma_y),
+         sigma_x = ifelse(value_x - 2*sigma_x <= 0, value_x/2-1e-6, sigma_x))
+```
+
+#### Prepare plot template
+
+```{r}
+# plot template
+plot_by_organism <- ggplot() +
+  aes(x = value_x, y = value_y, shape = Organism, fill = Organism) + 
+  geom_errorbar(aes(ymin = value_y - 2*sigma_y, ymax = value_y + 2*sigma_y), color = "black") + 
+  geom_errorbarh(aes(xmin = value_x - 2*sigma_x, xmax = value_x + 2*sigma_x), color = "black") + 
+  geom_point(size = 2) +
+  scale_x_log10(breaks = 10^(0:10), labels = function(x) TeX(sprintf("$10^{%.0f}$", log10(x)))) +
+  scale_y_log10(breaks = 10^(0:10), labels = function(x) TeX(sprintf("$10^{%.0f}$", log10(x)))) +
+  scale_shape_manual(values = c(21, 23)) +
+  coord_cartesian(xlim = 10^c(0,8), ylim = 10^c(0,8)) + 
+  labs(x = paste(ion_x, "ion counts"), y = paste(ion_y, "ion counts")) +
+  theme_bw() + 
+  guides(fill = guide_legend(override.aes = list(shape = 22, size = 6))) 
+```
+
+### E. huxleyi and EhV
+
+Ion counts of individual planes.
+
+```{r ehux_ehv_individual_planes, fig.width = 10, fig.height = 8}
+plot_by_organism %+% 
+  filter(nanosims_data_cross_plot, plane != "all", Organism %in% c("Ehux", "EhV")) + 
+  scale_fill_brewer(palette = "Set1")
+```
+
+Ion counts of combined planes.
+
+```{r ehux_ehv_combined_planes, fig.width = 10, fig.height = 8}
+plot_by_organism %+% 
+  filter(nanosims_data_cross_plot, plane == "all", Organism %in% c("Ehux", "EhV")) + 
+  scale_fill_brewer(palette = "Set1")
+```
+
+### Synecochocccus and Syn1
+
+Ion counts of individual planes.
+
+```{r syn1_wh8101_individual_planes, fig.width = 10, fig.height = 8}
+plot_by_organism %+% 
+  filter(nanosims_data_cross_plot, plane != "all", Organism %in% c("Syn1","WH8101")) 
+```
+
+Ion counts of combined planes.
+
+```{r syn1_wh8101_combined_planes, fig.width = 10, fig.height = 8}
+plot_by_organism %+% 
+  filter(nanosims_data_cross_plot, plane == "all", Organism %in% c("Syn1","WH8101")) 
+```
+
+### Summary for combined vs. individual planes' ion counts
+
+```{r}
+# average for each plane - pulls out data
+nanosims_data %>% 
+  mutate(plane_sum = ifelse(plane == "all", "combined planes", "individual planes")) %>% 
+  group_by(Organism, variable, plane_sum) %>% 
+  summarize(
+    avg_count = mean(value, na.rm = TRUE) %>% round(), 
+    min_count = min(value, na.rm = TRUE), 
+    max_count = max(value, na.rm= TRUE)) %>% 
+  arrange(variable, Organism) %>% 
+  kable(d=0)
+```
+
