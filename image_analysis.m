@@ -23,7 +23,7 @@ Cy3 = imread('11_EhVold_well1_negHPG_Cy3_100X_500ms_Sybr.tif');
 
 filename = '11_EhVold_well1_negHPG';
 
-%exposure time (units ms)
+%exposure time (units ms) %determined my the user when images were captured.
 ExpFITC = 150;
 ExpCy3 = 500;
 %%
@@ -80,7 +80,7 @@ FITCth = im2bw(mat2gray(FITCbs),0.1);
 
 %For loop moves the Cy3 image over the FITC image one pixel at a time, subtracts one from the other and sees if its a better or worse alignment then the previous loop based on the difference between the two images.
 %%
-% for alignment demonstration only
+% RUN for alignment demonstration only
 % pre_align = cat(3,Cy3sized,FITCsized,zeros(size(FITCth)));
 % post_align = cat(3,Cy3sized_pad(coords(1):coords(1)+1039,coords(2):coords(2)+1391),FITCsized,zeros(size(FITCth)));
 % subplot(1,2,1)
@@ -95,8 +95,7 @@ Cy3_aligned = Cy3_pad(coords(1):coords(1)+1039,coords(2):coords(2)+1391);
 Cy3bs_aligned = Cy3bs_pad(coords(1):coords(1)+1039,coords(2):coords(2)+1391);
 
 %%
-%Apply size cutoff to data based on Major axis length of SYBR stained
-%particle
+%Apply size cutoff to data based on Major axis length of SYBR stained particle
 MASK_STATS = regionprops(FITCth, 'centroid', 'area', 'majoraxislength');
 FITClabel = bwlabel(FITCth); %make an image with Original unit16 images (not the mat3gray image)
 MajorAxisLength = [MASK_STATS.MajorAxisLength]';
