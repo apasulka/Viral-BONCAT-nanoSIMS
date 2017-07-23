@@ -17,11 +17,11 @@
 
 %Image 1
 %read in GREEN image
-FITC = imread('11_EhVold_well1_negHPG_FITC_100X_150ms_Sybr.tif');
+FITC = imread('EhV_FITC_negHPG.tif');
 %read in RED image (Tamara clicked image)
-Cy3 = imread('11_EhVold_well1_negHPG_Cy3_100X_500ms_Sybr.tif');
+Cy3 = imread('EhV_Cy3_negHPG.tif');
 
-filename = '11_EhVold_well1_negHPG';
+filename = 'EhV_negHPG';
 
 %exposure time (units ms) %determined my the user when images were captured.
 ExpFITC = 150;
