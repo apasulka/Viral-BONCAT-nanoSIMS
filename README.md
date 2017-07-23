@@ -18,7 +18,7 @@ The quickest and easiest way is to use RStudio.
  2. Download and install [RStudio](http://www.rstudio.com/products/rstudio/download/) for your operating system
  3. Download a [zip file of this repository](https://github.com/apasulka/Viral-BONCAT/archive/master.zip) and unpack it in an easy to find directory on your computer
  4. Start RStudio and select File --> New Project from the menu, select the "Existing Directory" option and browse to the repository folder from the zip file in the "Project working directory" field, then select "Create Project"
- 5. Install the required libraries by running the following command in the **Console** in RStudio: `install.packages(c("tidyverse", "knitr", "lans2r"))` or by installing them manually in the RStudio's **Packages** manager.
+ 5. Install the required libraries by running the following command in the **Console** in RStudio: `install.packages(c("tidyverse", "knitr", "lans2r", "latex2exp"))` or by installing them manually in the RStudio's **Packages** manager.
  6. Open any of the R Markdown (.Rmd) files in the file browser.
  7. To generate the HTML report ("knit HTML"), select File --> Knit from the menu. The HTML report will be displayed upon successful completion (some might take a few minutes because of the complex figures) and is saved as a standalone file in the same directory. All generated figures are saved as PDFs and PNGs in the plot/ sub-directory.
 
