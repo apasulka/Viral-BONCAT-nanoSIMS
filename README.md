@@ -1,6 +1,6 @@
 ## Supplementary Information
 
-This repository holds the additional source code used in 1) image processing (MATLAB file `image_analysis.m`) and BONCAT fluorescent activity modeling (`boncat_activity_model.Rmd` and `boncat_activity_evaluation.Rmd`) as well as 2) nanoSIMS analaysis (`nanosims_data_processing.Rmd`, `nanosims_analysis_labeling.Rmd`, `nanosims_analysis_fractionation.Rmd`, `nanosims_analysis_counting_errors.Rmd`) for the following publication: Pasulka et al. 2017. *Applications of BONCAT and nanoSIMS for measuring viral production and virus-host interactions in the ocean* (NOTE: full citation, doi and link to follow after publication). 
+This repository holds the additional source code used in 1) image processing (MATLAB file `image_analysis.m`) and BONCAT fluorescent activity modeling (`boncat_activity_model.Rmd` and `boncat_activity_evaluation.Rmd`) as well as 2) nanoSIMS analaysis (`nanosims_data_processing.Rmd`, `nanosims_analysis_labeling.Rmd`, `nanosims_analysis_fractionation.Rmd`, `nanosims_analysis_counting_errors.Rmd`) for the following publication: Pasulka, A.L., Thamatrakoln, K., Kopf, S.H., Guan, Y., Poulos, B., Moradian, A., Sweredoski, M.J., Hess, S., Sullivan, M.B., Bidle, K., Orphan, V. J. 2018. Interrogating marine virus-host interactions and elemental transfer with BONCAT and nanoSIMS-based method. Environmental Microbiology. 20: 671-692. DOI:10.1111/1462-2920.13996
 
 ### Instructions for running the RMarkdown files:
 
